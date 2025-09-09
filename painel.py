@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
+import os
 
 app = Flask(__name__)
 
@@ -18,10 +19,12 @@ def escolher():
 def painel(deposito):
     todas = []
     for n in notificacoes:
+        # Carro/Empilhadeira aparecem em todos os painéis
         if n["nome"].lower() in ["carro", "empilhadeira"]:
-            todas.append(n)  # Carro/Empilhadeira aparecem em todos os painéis
+            todas.append(n)
+        # Entrada/Saída aparecem apenas no depósito correspondente
         elif n["local"] == deposito:
-            todas.append(n)  # Entrada/Saída só aparecem no depósito correspondente
+            todas.append(n)
 
     todas_ordenadas = sorted(todas, key=lambda x: x["id"], reverse=True)
     return render_template("index.html", notificacoes=todas_ordenadas, deposito=deposito)
@@ -33,7 +36,7 @@ def escritorio():
     if request.method == "POST":
         nome = request.form["nome"]  # Entrada, Saída, Carro, Empilhadeira
         local = request.form["local"]
-        setor = request.form.get("setor", "")  # 🔹 Agora captura o setor
+        setor = request.form.get("setor", "")
         notificacoes.append({
             "id": len(notificacoes) + 1,
             "nome": nome,
@@ -57,7 +60,7 @@ def nova():
 
     nome = data.get("nome")
     local = data.get("local")
-    setor = data.get("setor", "")  # 🔹 Captura o setor se houver
+    setor = data.get("setor", "")
 
     notificacoes.append({
         "id": len(notificacoes) + 1,
@@ -80,19 +83,25 @@ def marcar_visto(notificacao_id, deposito):
             break
     return redirect(url_for("painel", deposito=deposito))
 
+# 🔹 Atualizar status de Carro/Empilhadeira
 @app.route("/atualizar_status/<int:notificacao_id>/<status>", methods=["POST"])
 def atualizar_status(notificacao_id, status):
-    deposito_redirect = "D-9"  # antigo, sempre D-9
+    deposito_redirect = None
     for n in notificacoes:
         if n["id"] == notificacao_id:
             n["status"] = status
             if status == "aceito":
-                n["aceito"] = True
+                n["aceito"] = True  # Sinal para parar o áudio no front-end
             if status == "entregue":
                 n["visto"] = True
-            deposito_redirect = n["local"]  # pega o depósito da notificação
+            deposito_redirect = n["local"]
             break
+    # Redireciona para o painel correto do depósito da notificação
+    if not deposito_redirect:
+        deposito_redirect = "D-06"  # fallback
     return redirect(url_for("painel", deposito=deposito_redirect))
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0")
+    # 🔹 Usar porta do Render ou 5000 como padrão
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=True, host="0.0.0.0", port=port)
